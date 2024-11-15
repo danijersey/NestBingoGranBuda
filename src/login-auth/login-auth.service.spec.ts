@@ -1,31 +1,57 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { LoginAuthService } from './login-auth.service';
+import { LoginAuthRepository } from './repositorys/login-auth.repository';
 import { LoginAuthDto } from './dto/create-login-auth.dto';
+
+// Mock del repositorio LoginAuthRepository
+const mockLoginAuthRepository = {
+  AuthLogin: jest.fn(),
+};
 
 describe('LoginAuthService', () => {
   let service: LoginAuthService;
+  let loginAuthRepository: LoginAuthRepository;
 
   beforeEach(async () => {
-    // Configuramos el módulo de prueba
     const module: TestingModule = await Test.createTestingModule({
-      providers: [LoginAuthService], // Proveemos el servicio que vamos a testear
+      providers: [
+        LoginAuthService,
+        {
+          provide: LoginAuthRepository,
+          useValue: mockLoginAuthRepository,
+        },
+      ],
     }).compile();
 
-    // Obtenemos la instancia del servicio
     service = module.get<LoginAuthService>(LoginAuthService);
-  });
-
-  it('should be defined', () => {
-    expect(service).toBeDefined(); // Aseguramos que el servicio esté definido
+    loginAuthRepository = module.get<LoginAuthRepository>(LoginAuthRepository);
   });
 
   describe('LoginUser', () => {
-    it('should return a login message', () => {
-      const loginAuthDto: LoginAuthDto = { UserName: 'user', Password: 'password' }; // Creamos un DTO de ejemplo
-      const result = service.LoginUser(loginAuthDto); // Llamamos al método LoginUser
+    it('should return a user if login is successful', async () => {
+      const loginData: LoginAuthDto = { UserName: 'testuser', Password: 'password123' };
+      const mockUser = { id: 1, username: 'testuser', token: 'fake-jwt-token' };
+      
+      // Simulamos que AuthLogin retorna un usuario
+      mockLoginAuthRepository.AuthLogin.mockResolvedValue(mockUser);
 
-      // Verificamos que el resultado sea el esperado
-      expect(result).toBe('This action returns a user,password loginAuth');
+      const result = await service.LoginUser(loginData);
+
+      expect(loginAuthRepository.AuthLogin).toHaveBeenCalledWith(loginData); // Verifica que AuthLogin fue llamado con los datos correctos
+      expect(result).toEqual(mockUser); // Verifica que el resultado sea el esperado
+    });
+
+    it('should throw an error if login fails', async () => {
+      const loginData: LoginAuthDto = { UserName: 'wronguser', Password: 'wrongpassword' };
+      
+      // Simulamos que AuthLogin falla y lanza un error
+      mockLoginAuthRepository.AuthLogin.mockRejectedValue(new Error('Invalid credentials'));
+
+      try {
+        await service.LoginUser(loginData);
+      } catch (error) {
+        expect(error.message).toBe('Invalid credentials'); // Verifica que el error sea el esperado
+      }
     });
   });
 });
